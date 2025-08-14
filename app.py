@@ -13,6 +13,20 @@ from pathlib import Path
 app = Flask(__name__)
 CORS(app)
 
+# Add error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    app.logger.error(f"Unhandled exception: {str(e)}")
+    return jsonify({'error': 'An unexpected error occurred'}), 500
+
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 DATABASE = 'ams.db'
@@ -108,6 +122,12 @@ def search_documents(query, doc_type=None, limit=10):
     """Search documents based on query"""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
+    
+    # Check if there are any indexed documents first
+    cursor.execute("SELECT COUNT(*) FROM documents WHERE status = 'indexed'")
+    if cursor.fetchone()[0] == 0:
+        conn.close()
+        return []
     
     # Build search query
     search_terms = query.lower().split()
@@ -300,17 +320,22 @@ def search():
     doc_type = request.args.get('type', 'all')
     limit = int(request.args.get('limit', 10))
     
+    app.logger.info(f"Search request: query='{query}', type='{doc_type}', limit={limit}")
+    
     if not query:
+        app.logger.warning("Search request with empty query")
         return jsonify({'error': 'Query parameter is required'}), 400
     
     try:
         results = search_documents(query, doc_type, limit)
+        app.logger.info(f"Search completed: {len(results)} results found")
         return jsonify({
             'query': query,
             'results': results,
             'total': len(results)
         })
     except Exception as e:
+        app.logger.error(f"Search failed: {str(e)}")
         return jsonify({'error': f'Search failed: {str(e)}'}), 500
 
 @app.route('/api/documents', methods=['GET'])
@@ -404,7 +429,22 @@ def get_recent_searches():
 
 @app.route('/', methods=['GET'])
 def home():
-    """Home endpoint"""
+    """Serve the main HTML page"""
+    return send_from_directory('.', 'index.html')
+
+@app.route('/index.html', methods=['GET'])
+def serve_index():
+    """Serve the main HTML page"""
+    return send_from_directory('.', 'index.html')
+
+@app.route('/minimal-test.html', methods=['GET'])
+def serve_minimal_test():
+    """Serve the minimal test page"""
+    return send_from_directory('.', 'minimal-test.html')
+
+@app.route('/api', methods=['GET'])
+def api_info():
+    """API information endpoint"""
     return jsonify({
         'message': 'AMS Backend API is running',
         'version': '1.0',
@@ -424,4 +464,7 @@ def health_check():
 
 if __name__ == '__main__':
     init_database()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("🚀 AMS Application Starting...")
+    print("📱 Open your browser and go to: http://localhost:5001")
+    print("🔍 The HTML file will now be served by Flask instead of opening directly")
+    app.run(debug=True, host='0.0.0.0', port=5001)

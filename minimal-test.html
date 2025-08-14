@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Search Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .search-input { width: 300px; padding: 10px; font-size: 16px; }
+        .results { margin-top: 20px; padding: 20px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Minimal Search Test</h1>
+    <p>Type in the box below. The page should NOT reload.</p>
+    
+    <input type="text" class="search-input" id="searchInput" placeholder="Type here...">
+    <div class="results" id="results">Results will appear here...</div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const results = document.getElementById('results');
+        
+        let searchTimeout;
+        
+        // Simple input handler
+        searchInput.addEventListener('input', function(e) {
+            const value = e.target.value;
+            console.log('Input:', value);
+            
+            // Clear previous timeout
+            clearTimeout(searchTimeout);
+            
+            if (value.length >= 2) {
+                // Simulate search
+                searchTimeout = setTimeout(() => {
+                    results.innerHTML = `<h3>Search Results for: "${value}"</h3><p>This is a test result. Page should NOT reload.</p>`;
+                }, 300);
+            } else if (value.length === 0) {
+                results.innerHTML = 'Results will appear here...';
+            }
+        });
+        
+        // Prevent any form submission
+        document.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('Form submission prevented');
+            return false;
+        });
+        
+        // Monitor page reloads
+        window.addEventListener('beforeunload', function(e) {
+            console.error('PAGE RELOAD DETECTED!');
+            console.trace('Stack trace');
+        });
+        
+        console.log('Minimal test page loaded');
+    </script>
+</body>
+</html> 
