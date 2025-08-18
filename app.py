@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, send_from_directory, g
+from flask import Flask, request, jsonify, send_from_directory, render_template_string
+import json
 from flask_cors import CORS
 import os
 import sqlite3
@@ -6,7 +7,6 @@ import PyPDF2
 import uuid
 from datetime import datetime
 import threading
-import json
 import re
 from werkzeug.utils import secure_filename
 from pathlib import Path
@@ -16,30 +16,54 @@ CORS(app)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
-DATABASE = 'ams.db'
+DATABASE = 'documents.db'
 ALLOWED_EXTENSIONS = {'pdf'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+# Cloud Storage Configuration (optional)
+USE_CLOUD_STORAGE = False  # Set to True to enable cloud storage
+CLOUD_STORAGE_TYPE = 's3'  # 's3', 'gcs', 'azure'
+CLOUD_BUCKET_NAME = 'your-bucket-name'
+CLOUD_REGION = 'us-east-1'
+
+# Backup Configuration
+ENABLE_BACKUPS = True
+BACKUP_FOLDER = 'backups'
+BACKUP_RETENTION_DAYS = 30  # Keep backups for 30 days
+AUTO_BACKUP_ON_UPLOAD = True  # Create backup automatically when files are uploaded
 
 # Ensure upload directory exists
 Path(UPLOAD_FOLDER).mkdir(exist_ok=True)
 
-def get_db():
-    """Establishes a database connection or returns the existing one."""
-    if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE)
-        g.db.row_factory = sqlite3.Row  # Return rows as dict-like objects
-    return g.db
+# Ensure backup directory exists
+if ENABLE_BACKUPS:
+    Path(BACKUP_FOLDER).mkdir(exist_ok=True)
 
-@app.teardown_appcontext
-def close_db(e=None):
-    """Closes the database connection at the end of the request."""
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+def get_db():
+    """Establishes a database connection."""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def load_backup_config():
+    """Load backup configuration from file."""
+    global BACKUP_FOLDER
+    config_file = os.path.join(os.path.dirname(__file__), 'backup_config.json')
+    
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                config_data = json.load(f)
+                if 'backup_folder' in config_data:
+                    BACKUP_FOLDER = config_data['backup_folder']
+                    print(f"Loaded backup path from config: {BACKUP_FOLDER}")
+        except Exception as e:
+            print(f"Error loading backup config: {e}")
+            print("Using default backup path")
 
 def init_database():
-    """Initialize the SQLite database with FTS5 table."""
-    conn = sqlite3.connect(DATABASE)
+    """Initialize the SQLite database."""
+    conn = get_db()
     cursor = conn.cursor()
     
     # Create documents table
@@ -83,8 +107,99 @@ def init_database():
 
 def allowed_file(filename):
     """Checks if the file extension is allowed."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def upload_to_cloud(file_path, file_id, original_filename):
+    """Upload file to cloud storage (placeholder for cloud integration)."""
+    if not USE_CLOUD_STORAGE:
+        return True, "Local storage only"
+    
+    try:
+        # This is a placeholder - you would implement actual cloud upload here
+        # For AWS S3, you'd use boto3
+        # For Google Cloud Storage, you'd use google-cloud-storage
+        # For Azure, you'd use azure-storage-blob
+        
+        print(f"Would upload {file_path} to cloud storage")
+        return True, "Cloud upload successful"
+    except Exception as e:
+        return False, str(e)
+
+def get_file_from_storage(file_id, original_filename):
+    """Get file from storage (local or cloud)."""
+    if USE_CLOUD_STORAGE:
+        # Return cloud storage URL or download from cloud
+        return f"https://{CLOUD_BUCKET_NAME}.s3.{CLOUD_REGION}.amazonaws.com/{file_id}_{original_filename}"
+    else:
+        # Return local file path
+        return os.path.join(UPLOAD_FOLDER, f"{file_id}_{original_filename}")
+
+def create_backup(file_path, file_id, original_filename):
+    """Create a backup copy of the uploaded file."""
+    if not ENABLE_BACKUPS:
+        return True, "Backups disabled"
+    
+    try:
+        import shutil
+        from datetime import datetime
+        
+        # Create timestamped backup filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"{timestamp}_{file_id}_{original_filename}"
+        backup_path = os.path.join(BACKUP_FOLDER, backup_filename)
+        
+        # Copy file to backup location
+        shutil.copy2(file_path, backup_path)
+        
+        print(f"Backup created: {backup_path}")
+        return True, backup_path
+    except Exception as e:
+        print(f"Backup failed: {str(e)}")
+        return False, str(e)
+
+def cleanup_old_backups():
+    """Remove old backup files based on retention policy."""
+    if not ENABLE_BACKUPS:
+        return
+    
+    try:
+        from datetime import datetime, timedelta
+        
+        cutoff_date = datetime.now() - timedelta(days=BACKUP_RETENTION_DAYS)
+        
+        for filename in os.listdir(BACKUP_FOLDER):
+            file_path = os.path.join(BACKUP_FOLDER, filename)
+            
+            # Check if file is older than retention period
+            file_time = datetime.fromtimestamp(os.path.getctime(file_path))
+            if file_time < cutoff_date:
+                os.remove(file_path)
+                print(f"Removed old backup: {filename}")
+    except Exception as e:
+        print(f"Backup cleanup failed: {str(e)}")
+
+def backup_database():
+    """Create a backup of the SQLite database."""
+    if not ENABLE_BACKUPS:
+        return True, "Backups disabled"
+    
+    try:
+        import shutil
+        from datetime import datetime
+        
+        # Create timestamped database backup
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        db_backup_filename = f"documents_backup_{timestamp}.db"
+        db_backup_path = os.path.join(BACKUP_FOLDER, db_backup_filename)
+        
+        # Copy database to backup location
+        shutil.copy2(DATABASE, db_backup_path)
+        
+        print(f"Database backup created: {db_backup_path}")
+        return True, db_backup_path
+    except Exception as e:
+        print(f"Database backup failed: {str(e)}")
+        return False, str(e)
 
 def extract_text_from_pdf(file_path):
     """Extract text from PDF file."""
@@ -105,7 +220,7 @@ def extract_text_from_pdf(file_path):
         return [], 0
 
 def determine_document_type(filename, content):
-    """Determines document type based on filename and content heuristics."""
+    """Determines document type based on filename and content."""
     filename_lower = filename.lower()
     content_lower = ' '.join([page['text'] for page in content]).lower()
     
@@ -122,16 +237,13 @@ def determine_document_type(filename, content):
     else:
         return 'document'
 
-def process_pdf_content_background(file_id, file_path, original_filename):
-    """
-    Background task to process PDF content, extract text, determine type,
-    and update the database for search indexing.
-    """
-    conn = sqlite3.connect(DATABASE)
+def process_pdf_background(file_id, file_path, original_filename):
+    """Background task to process PDF content."""
+    conn = get_db()
     cursor = conn.cursor()
     
     try:
-        print(f"Starting background processing for {original_filename} (ID: {file_id})")
+        print(f"Processing {original_filename} (ID: {file_id})")
         
         content, page_count = extract_text_from_pdf(file_path)
         
@@ -140,7 +252,7 @@ def process_pdf_content_background(file_id, file_path, original_filename):
             
         doc_type = determine_document_type(original_filename, content)
         
-        print(f"Extracted {len(content)} pages of text from {original_filename}")
+        print(f"Extracted {len(content)} pages from {original_filename}")
         
         # Store content in FTS5 table
         for page_data in content:
@@ -149,20 +261,19 @@ def process_pdf_content_background(file_id, file_path, original_filename):
                 (file_id, page_data['page'], page_data['text'])
             )
         
-        # Update document status to indexed
+        # Update document status
         cursor.execute(
             "UPDATE documents SET status = ?, page_count = ?, document_type = ? WHERE id = ?",
             ('indexed', page_count, doc_type, file_id)
         )
         
         conn.commit()
-        print(f"Successfully processed and indexed PDF: {original_filename} (ID: {file_id})")
+        print(f"Successfully processed: {original_filename}")
         
     except Exception as e:
         error_msg = str(e)
-        print(f"Error processing PDF {original_filename} (ID: {file_id}): {error_msg}")
+        print(f"Error processing {original_filename}: {error_msg}")
         
-        # Mark as error with error message
         cursor.execute(
             "UPDATE documents SET status = ?, error_message = ? WHERE id = ?", 
             ('error', error_msg, file_id)
@@ -171,13 +282,1035 @@ def process_pdf_content_background(file_id, file_path, original_filename):
     finally:
         conn.close()
 
-@app.route('/api/search', methods=['GET', 'POST'])
-def search():
-    if request.method == 'GET':
-        query = request.args.get('q', '').strip()
-    else:
-        data = request.get_json() or {}
-        query = data.get('q') or data.get('query') or data.get('search_term', '')
+@app.route('/')
+def home():
+    """Main page with HTML interface."""
+    html_template = '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PDF Search & Storage</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+                background: #f3f2ef;
+                min-height: 100vh;
+                color: #191919;
+                line-height: 1.6;
+            }
+            
+            .container {
+                max-width: 1128px;
+                margin: 0 auto;
+                padding: 24px;
+            }
+            
+            .header {
+                text-align: center;
+                margin-bottom: 48px;
+                background: white;
+                padding: 32px;
+                border-radius: 8px;
+                box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+                margin-bottom: 32px;
+            }
+            
+            .header h1 {
+                font-size: 2.5rem;
+                margin-bottom: 12px;
+                color: #0a66c2;
+                font-weight: 600;
+                letter-spacing: -0.025em;
+            }
+            
+            .header p {
+                font-size: 1.125rem;
+                color: #666;
+                font-weight: 400;
+            }
+            
+            .main-content {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                margin-bottom: 32px;
+            }
+            
+            .card {
+                background: white;
+                border-radius: 8px;
+                padding: 24px;
+                box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+                transition: box-shadow 0.2s ease;
+                border: 1px solid transparent;
+            }
+            
+            .card:hover {
+                box-shadow: 0 0 0 1px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.15);
+            }
+            
+            .card h2 {
+                color: #191919;
+                margin-bottom: 20px;
+                font-size: 1.25rem;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .upload-area {
+                border: 2px dashed #d0d8dc;
+                border-radius: 8px;
+                padding: 32px;
+                text-align: center;
+                transition: all 0.2s ease;
+                cursor: pointer;
+                background: #fafafa;
+            }
+            
+            .upload-area:hover, .upload-area.dragover {
+                border-color: #0a66c2;
+                background-color: #f0f8ff;
+            }
+            
+            .upload-area.dragover {
+                transform: scale(1.01);
+            }
+            
+            .upload-icon {
+                font-size: 2.5rem;
+                color: #0a66c2;
+                margin-bottom: 16px;
+            }
+            
+            .upload-text {
+                font-size: 1rem;
+                margin-bottom: 8px;
+                color: #191919;
+                font-weight: 500;
+            }
+            
+            .upload-subtext {
+                color: #666;
+                margin-bottom: 20px;
+                font-size: 0.875rem;
+            }
+            
+            .upload-btn {
+                background: #0a66c2;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 24px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                min-width: 120px;
+            }
+            
+            .upload-btn:hover {
+                background: #004182;
+                transform: translateY(-1px);
+            }
+            
+            .search-container {
+                margin-bottom: 20px;
+            }
+            
+            .search-input {
+                width: 100%;
+                padding: 12px 16px;
+                border: 1px solid #d0d8dc;
+                border-radius: 4px;
+                font-size: 0.875rem;
+                transition: border-color 0.2s ease;
+                background: white;
+            }
+            
+            .search-input:focus {
+                outline: none;
+                border-color: #0a66c2;
+                box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.1);
+            }
+            
+            .search-btn {
+                background: #0a66c2;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                cursor: pointer;
+                margin-top: 12px;
+                width: 100%;
+                transition: all 0.2s ease;
+            }
+            
+            .search-btn:hover {
+                background: #004182;
+            }
+            
+            .file-list {
+                margin-top: 20px;
+            }
+            
+            .file-item {
+                display: flex;
+                align-items: center;
+                padding: 16px;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                margin-bottom: 12px;
+                background: #fafafa;
+                transition: all 0.2s ease;
+            }
+            
+            .file-item:hover {
+                background: #f0f0f0;
+                border-color: #d0d8dc;
+            }
+            
+            .file-icon {
+                font-size: 1.25rem;
+                margin-right: 16px;
+                color: #0a66c2;
+            }
+            
+            .file-info {
+                flex: 1;
+            }
+            
+            .file-name {
+                font-weight: 600;
+                margin-bottom: 4px;
+                color: #191919;
+                font-size: 0.875rem;
+            }
+            
+            .file-meta {
+                color: #666;
+                font-size: 0.75rem;
+            }
+            
+            .file-status {
+                padding: 4px 12px;
+                border-radius: 12px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.025em;
+            }
+            
+            .status-processing {
+                background: #fff3cd;
+                color: #856404;
+            }
+            
+            .status-complete {
+                background: #d4edda;
+                color: #155724;
+            }
+            
+            .status-error {
+                background: #f8d7da;
+                color: #721c24;
+            }
+            
+            .results-section {
+                margin-top: 20px;
+            }
+            
+            .result-item {
+                background: #fafafa;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                padding: 20px;
+                margin-bottom: 16px;
+                transition: all 0.2s ease;
+            }
+            
+            .result-item:hover {
+                background: #f0f0f0;
+                border-color: #d0d8dc;
+            }
+            
+            .result-title {
+                font-weight: 600;
+                color: #0a66c2;
+                margin-bottom: 8px;
+                cursor: pointer;
+                font-size: 1rem;
+            }
+            
+            .result-title:hover {
+                text-decoration: underline;
+            }
+            
+            .result-meta {
+                color: #666;
+                font-size: 0.75rem;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .result-snippet {
+                background: white;
+                padding: 16px;
+                border-radius: 6px;
+                border-left: 3px solid #0a66c2;
+                line-height: 1.6;
+                font-size: 0.875rem;
+                color: #191919;
+            }
+            
+            .result-actions {
+                margin-top: 15px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            
+            .action-btn {
+                background: #667eea;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 20px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                transition: all 0.3s ease;
+                text-decoration: none;
+                display: inline-block;
+            }
+            
+            .action-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            
+            .action-btn[onclick*="downloadPDF"] {
+                background: #28a745;
+            }
+            
+            .action-btn[onclick*="openPDFInNewTab"] {
+                background: #ffc107;
+                color: black;
+            }
+            
+            .highlight {
+                background: #fff3cd;
+                padding: 2px 4px;
+                border-radius: 3px;
+            }
+            
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: #666;
+            }
+            
+            .loading-spinner {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #667eea;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-top: 20px;
+            }
+            
+            .stat-item {
+                background: #fafafa;
+                padding: 20px;
+                border-radius: 6px;
+                text-align: center;
+                border: 1px solid #e0e0e0;
+                transition: all 0.2s ease;
+            }
+            
+            .stat-item:hover {
+                background: #f0f0f0;
+                border-color: #d0d8dc;
+            }
+            
+            .stat-number {
+                font-size: 1.75rem;
+                font-weight: 600;
+                color: #0a66c2;
+                display: block;
+                margin-bottom: 4px;
+            }
+            
+            .stat-label {
+                color: #666;
+                font-size: 0.875rem;
+                font-weight: 500;
+            }
+            
+            .filters {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+            }
+            
+            .filter-btn {
+                background: #fafafa;
+                border: 1px solid #d0d8dc;
+                padding: 6px 16px;
+                border-radius: 16px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                color: #666;
+                font-size: 0.75rem;
+                font-weight: 500;
+            }
+            
+            .filter-btn.active, .filter-btn:hover {
+                background: #0a66c2;
+                color: white;
+                border-color: #0a66c2;
+            }
+            
+            .search-tips {
+                margin: 16px 0;
+                padding: 12px 16px;
+                background: #e3f2fd;
+                border-radius: 6px;
+                font-size: 0.875rem;
+                color: #0d47a1;
+                border-left: 3px solid #2196f3;
+            }
+            
+            .backup-section {
+                margin-top: 32px;
+                text-align: center;
+                padding: 24px;
+                background: #f8f9fa;
+                border-radius: 6px;
+                border: 1px solid #e0e0e0;
+            }
+            
+            .backup-section h3 {
+                color: #191919;
+                margin-bottom: 8px;
+                font-size: 1.125rem;
+                font-weight: 600;
+            }
+            
+            .backup-section p {
+                color: #666;
+                margin-bottom: 20px;
+                font-size: 0.875rem;
+            }
+            
+            .backup-btn {
+                background: #28a745;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                min-width: 140px;
+            }
+            
+            .backup-btn:hover {
+                background: #1e7e34;
+            }
+            
+            .backup-btn:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+            }
+            
+            .hidden {
+                display: none;
+            }
+            
+            @media (max-width: 768px) {
+                .main-content {
+                    grid-template-columns: 1fr;
+                }
+                
+                .header h1 {
+                    font-size: 2rem;
+                }
+                
+                .container {
+                    padding: 16px;
+                }
+                
+                .card {
+                    padding: 20px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>📚 PDF Search & Storage</h1>
+                <p>Upload PDFs and search through their content instantly</p>
+            </div>
+            
+            <div class="main-content">
+                <!-- Upload Section -->
+                <div class="card">
+                    <h2>📤 Upload PDFs</h2>
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">Drop PDF files here or click to browse</div>
+                        <div class="upload-subtext">Support for PDF documents up to 50MB each</div>
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Choose Files</button>
+                        <input type="file" id="fileInput" multiple accept=".pdf" style="display: none;">
+                    </div>
+                    
+                    <div class="file-list" id="fileList"></div>
+                </div>
+                
+                            <!-- Search Section -->
+            <div class="card">
+                <h2>🔍 Search Documents</h2>
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="What would you like to know? (partial words work too!)" id="searchInput">
+                    <button class="search-btn" onclick="performSearch()">Search</button>
+                </div>
+                
+                <div class="search-tips">
+                    💡 <strong>Search Tips:</strong> Use partial words like "calc" to find "calculus", "calc" to find "calculate", etc.
+                </div>
+                
+                <div class="filters">
+                    <button class="filter-btn active" data-filter="all">All Documents</button>
+                    <button class="filter-btn" data-filter="policy">Policies</button>
+                    <button class="filter-btn" data-filter="manual">Manuals</button>
+                    <button class="filter-btn" data-filter="faq">FAQs</button>
+                    <button class="filter-btn" data-filter="guide">Guides</button>
+                </div>
+                
+                <div class="results-section" id="resultsSection">
+                    <div class="loading">
+                        <h3>🔍 Ready to search</h3>
+                        <p>Upload PDF documents first, then search through them for relevant information.</p>
+                    </div>
+                </div>
+                
+                <!-- Search Suggestions -->
+                <div id="searchSuggestions"></div>
+            </div>
+            </div>
+            
+            <!-- Stats Section -->
+            <div class="card">
+                <h2>📊 System Statistics</h2>
+                <div class="stats">
+                    <div class="stat-item">
+                        <span class="stat-number" id="totalDocsStat">0</span>
+                        <div class="stat-label">Total Documents</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" id="pagesIndexedStat">0</span>
+                        <div class="stat-label">Pages Indexed</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" id="lastUpdatedStat">Never</span>
+                        <div class="stat-label">Last Updated</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" id="accuracyStat">--</span>
+                        <div class="stat-label">Search Accuracy</div>
+                    </div>
+                </div>
+                
+                <!-- Backup Section -->
+                <div class="backup-section">
+                    <h3>💾 Data Protection</h3>
+                    <p>Create backups of your documents and database</p>
+                    
+                    <div class="backup-controls" style="margin: 20px 0; padding: 15px; background: #f8f9ff; border-radius: 8px; text-align: left;">
+                        <h4 style="margin-top: 0; color: #333;">📁 Change Backup Location</h4>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                            <input type="text" id="newBackupPath" placeholder="Enter new backup path (e.g., /Users/username/Documents/MyBackups)" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
+                            <button onclick="changeBackupPath()" style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">Change Path</button>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #666; line-height: 1.4;">
+                            💡 <strong>Examples:</strong><br>
+                            • <code>/Users/danieltsay/Documents/PDF_Backups</code><br>
+                            • <code>/Volumes/ExternalDrive/Backups</code><br>
+                            • <code>~/Desktop/MyBackups</code>
+                        </div>
+                    </div>
+                    
+                    <button class="backup-btn" onclick="createBackup()">
+                        🔒 Create Backup
+                    </button>
+                    <div id="backupStatus" style="margin-top: 15px; font-size: 0.9rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let currentFilter = 'all';
+            let searchResults = [];
+
+            // File upload functionality
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                handleFiles(files);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+
+            async function handleFiles(files) {
+                Array.from(files).forEach(async (file) => {
+                    if (file.type === 'application/pdf') {
+                        console.log('Uploading file:', file.name);
+                        
+                        const fileItem = addFileToList(file);
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            
+                            const response = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            if (response.ok) {
+                                const result = await response.json();
+                                console.log('Upload successful:', result);
+                                
+                                const status = fileItem.querySelector('.file-status');
+                                status.textContent = 'Processing...';
+                                status.className = 'file-status status-processing';
+                                
+                                pollUploadStatus(result.id, fileItem);
+                                loadStats();
+                            } else {
+                                const error = await response.text();
+                                console.error('Upload failed:', error);
+                                updateFileStatus(fileItem, 'Error', 'status-error');
+                            }
+                        } catch (error) {
+                            console.error('Upload error:', error);
+                            updateFileStatus(fileItem, 'Upload Failed', 'status-error');
+                        }
+                    } else {
+                        alert('Only PDF files are supported');
+                    }
+                });
+            }
+
+            function addFileToList(file) {
+                const fileList = document.getElementById('fileList');
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-meta">${(file.size / 1024 / 1024).toFixed(1)} MB • Just uploaded</div>
+                    </div>
+                    <div class="file-status status-processing">Processing</div>
+                `;
+                fileList.appendChild(fileItem);
+                return fileItem;
+            }
+
+            function updateFileStatus(fileItem, text, className) {
+                const status = fileItem.querySelector('.file-status');
+                status.textContent = text;
+                status.className = `file-status ${className}`;
+            }
+
+            async function pollUploadStatus(fileId, fileItem) {
+                const maxAttempts = 30;
+                let attempts = 0;
+                
+                const poll = async () => {
+                    try {
+                        const response = await fetch('/api/documents');
+                        const documents = await response.json();
+                        const doc = documents.find(d => d.id === fileId);
+                        
+                        if (doc) {
+                            if (doc.status === 'indexed') {
+                                updateFileStatus(fileItem, 'Indexed', 'status-complete');
+                                loadStats();
+                                return;
+                            } else if (doc.status === 'error') {
+                                updateFileStatus(fileItem, 'Error', 'status-error');
+                                return;
+                            }
+                        }
+                        
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            setTimeout(poll, 10000);
+                        } else {
+                            updateFileStatus(fileItem, 'Timeout', 'status-error');
+                        }
+                    } catch (error) {
+                        console.error('Status check failed:', error);
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            setTimeout(poll, 10000);
+                        } else {
+                            updateFileStatus(fileItem, 'Status Check Failed', 'status-error');
+                        }
+                    }
+                };
+                
+                poll();
+            }
+
+            // Search functionality
+            document.getElementById('searchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            async function performSearch() {
+                const query = document.getElementById('searchInput').value.trim();
+                if (!query) return;
+
+                showLoading();
+                
+                try {
+                    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        searchResults = data.results || [];
+                        displayResults(searchResults);
+                        
+                        // Show search suggestions for partial matches
+                        if (query.length >= 2 && searchResults.length > 0) {
+                            showSearchSuggestions(query, searchResults);
+                        }
+                    } else {
+                        console.error('Search failed:', response.statusText);
+                        showError('Search failed. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Search error:', error);
+                    showError('Search failed. Please try again.');
+                }
+            }
+            
+            function showSearchSuggestions(query, results) {
+                const suggestionsDiv = document.getElementById('searchSuggestions');
+                if (!suggestionsDiv) return;
+                
+                // Extract unique words from results for suggestions
+                const words = new Set();
+                results.forEach(result => {
+                    const content = result.snippet.toLowerCase();
+                    const queryLower = query.toLowerCase();
+                    
+                    // Find words that contain the query
+                    const wordMatches = content.match(/\b\w+\b/g) || [];
+                    wordMatches.forEach(word => {
+                        if (word.includes(queryLower) && word.length > query.length) {
+                            words.add(word);
+                        }
+                    });
+                });
+                
+                if (words.size > 0) {
+                    const suggestions = Array.from(words).slice(0, 5);
+                    suggestionsDiv.innerHTML = `
+                        <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            💡 <strong>Try these related searches:</strong> 
+                            ${suggestions.map(word => `<span onclick="setSearch('${word}')" style="cursor: pointer; color: #17a2b8; text-decoration: underline; margin: 0 5px;">${word}</span>`).join('')}
+                        </div>
+                    `;
+                } else {
+                    suggestionsDiv.innerHTML = '';
+                }
+            }
+            
+            function setSearch(query) {
+                document.getElementById('searchInput').value = query;
+                performSearch();
+            }
+
+            function showLoading() {
+                document.getElementById('resultsSection').innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <h3>Searching documents...</h3>
+                        <p>Analyzing your query and finding relevant information</p>
+                    </div>
+                `;
+            }
+
+            function showError(message) {
+                document.getElementById('resultsSection').innerHTML = `
+                    <div class="loading">
+                        <h3>❌ Error</h3>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+
+            function displayResults(results) {
+                const filteredResults = currentFilter === 'all' 
+                    ? results 
+                    : results.filter(r => r.type === currentFilter);
+
+                if (filteredResults.length === 0) {
+                    document.getElementById('resultsSection').innerHTML = `
+                        <div class="loading">
+                            <h3>No results found</h3>
+                            <p>Try adjusting your search terms or filters</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const resultsHTML = filteredResults.map(result => createResultHTML(result)).join('');
+                document.getElementById('resultsSection').innerHTML = resultsHTML;
+            }
+
+            function createResultHTML(result) {
+                return `
+                    <div class="result-item">
+                        <div class="result-title">
+                            ${result.title}
+                        </div>
+                        <div class="result-meta">
+                            📄 ${result.document} • Page ${result.page} • ${result.confidence}% match
+                        </div>
+                        <div class="result-snippet">${result.snippet}</div>
+                        <div class="result-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button class="action-btn" onclick="viewPDF('${result.id}', '${result.filename}', ${result.page})" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.9rem;">
+                                👁️ View PDF
+                            </button>
+                            <button class="action-btn" onclick="downloadPDF('${result.id}', '${result.filename}')" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.9rem;">
+                                📥 Download
+                            </button>
+                            <button class="action-btn" onclick="openPDFInNewTab('${result.id}', '${result.filename}')" style="background: #ffc107; color: black; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.9rem;">
+                                🔗 Open in New Tab
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function viewPDF(docId, filename, page) {
+                // Open PDF in a modal or new window
+                const pdfUrl = `/api/document/${docId}/view`;
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                    background: rgba(0,0,0,0.8); z-index: 1000; display: flex; 
+                    align-items: center; justify-content: center;
+                `;
+                
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: 10px; padding: 20px; max-width: 90%; max-height: 90%; overflow: hidden;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin: 0;">${filename} - Page ${page}</h3>
+                            <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">✕ Close</button>
+                        </div>
+                        <iframe src="${pdfUrl}" style="width: 800px; height: 600px; border: none; border-radius: 5px;"></iframe>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Close modal when clicking outside
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) modal.remove();
+                });
+            }
+            
+            function downloadPDF(docId, filename) {
+                const downloadUrl = `/api/document/${docId}/download`;
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            function openPDFInNewTab(docId, filename) {
+                const pdfUrl = `/api/document/${docId}/view`;
+                window.open(pdfUrl, '_blank');
+            }
+
+            // Filter functionality
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentFilter = this.dataset.filter;
+                    if (searchResults.length > 0) {
+                        displayResults(searchResults);
+                    }
+                });
+            });
+
+            // Load initial stats and backup info
+            loadStats();
+            loadBackupInfo();
+
+            async function loadStats() {
+                try {
+                    const response = await fetch('/api/stats');
+                    if (response.ok) {
+                        const stats = await response.json();
+                        document.getElementById('totalDocsStat').textContent = stats.totalDocuments || 0;
+                        document.getElementById('pagesIndexedStat').textContent = stats.totalPages || 0;
+                        document.getElementById('lastUpdatedStat').textContent = stats.lastUpdated || 'Never';
+                        document.getElementById('accuracyStat').textContent = stats.accuracy ? `${stats.accuracy}%` : '--';
+                    }
+                } catch (error) {
+                    console.error('Failed to load stats:', error);
+                }
+            }
+            
+            async function loadBackupInfo() {
+                try {
+                    const response = await fetch('/api/backup/info');
+                    if (response.ok) {
+                        const info = await response.json();
+                        // Update the current backup path display if it exists
+                        const currentPathElement = document.getElementById('currentBackupPath');
+                        if (currentPathElement) {
+                            currentPathElement.textContent = info.current_path;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load backup info:', error);
+                }
+            }
+            
+            async function createBackup() {
+                const backupBtn = event.target;
+                const backupStatus = document.getElementById('backupStatus');
+                
+                backupBtn.disabled = true;
+                backupBtn.textContent = '🔄 Creating Backup...';
+                backupStatus.innerHTML = '<span style="color: #007bff;">Creating backup...</span>';
+                
+                try {
+                    const response = await fetch('/api/backup', { method: 'POST' });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        backupStatus.innerHTML = `
+                            <span style="color: #28a745;">✅ Backup completed successfully!</span><br>
+                            <small style="color: #666;">Database: ${result.database_backup.success ? '✅' : '❌'}<br>
+                            Files: ${result.file_backups.filter(f => f.backup_success).length}/${result.file_backups.length} backed up</small>
+                        `;
+                    } else {
+                        backupStatus.innerHTML = `<span style="color: #dc3545;">❌ Backup failed: ${result.error}</span>`;
+                    }
+                } catch (error) {
+                    backupStatus.innerHTML = `<span style="color: #dc3545;">❌ Backup failed: ${error.message}</span>`;
+                } finally {
+                    backupBtn.disabled = false;
+                    backupBtn.textContent = '🔒 Create Backup';
+                }
+            }
+            
+            async function changeBackupPath() {
+                const newPath = document.getElementById('newBackupPath').value.trim();
+                if (!newPath) {
+                    alert('Please enter a backup path');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/backup/path', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ path: newPath })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        document.getElementById('backupStatus').innerHTML = `
+                            <span style="color: #28a745;">✅ Backup path changed successfully!</span><br>
+                            <small>New location: ${result.new_path}</small>
+                        `;
+                        document.getElementById('newBackupPath').value = '';
+                        
+                        // Update the current path display if it exists
+                        const currentPathElement = document.getElementById('currentBackupPath');
+                        if (currentPathElement) {
+                            currentPathElement.textContent = result.new_path;
+                        }
+                    } else {
+                        const error = await response.json();
+                        document.getElementById('backupStatus').innerHTML = `
+                            <span style="color: #dc3545;">❌ Failed to change backup path: ${error.error}</span>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Change path error:', error);
+                    document.getElementById('backupStatus').innerHTML = `
+                        <span style="color: #dc3545;">❌ Failed to change backup path: ${error.message}</span>
+                    `;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    '''
+    return html_template
+
+@app.route('/api/upload', methods=['POST'])
 def upload_file():
     """Handles file upload and initiates background PDF processing."""
     if 'file' not in request.files:
@@ -215,9 +1348,23 @@ def upload_file():
         
         print(f"File uploaded: {original_filename} (ID: {file_id}, Size: {file_size} bytes)")
         
+        # Create backup copy
+        backup_success, backup_message = create_backup(file_path, file_id, original_filename)
+        if backup_success:
+            print(f"Backup created: {backup_message}")
+        else:
+            print(f"Backup failed: {backup_message}")
+        
+        # Upload to cloud storage if enabled
+        if USE_CLOUD_STORAGE:
+            cloud_success, cloud_message = upload_to_cloud(file_path, file_id, original_filename)
+            if not cloud_success:
+                print(f"Cloud upload failed: {cloud_message}")
+                # Continue with local storage if cloud fails
+        
         # Start background processing for PDF content extraction and indexing
         thread = threading.Thread(
-            target=process_pdf_content_background, 
+            target=process_pdf_background, 
             args=(file_id, file_path, original_filename)
         )
         thread.daemon = True
@@ -229,7 +1376,8 @@ def upload_file():
             'size': file_size,
             'status': 'processing',
             'uploadDate': datetime.now().isoformat(),
-            'pageCount': 0
+            'pageCount': 0,
+            'storage': 'cloud' if USE_CLOUD_STORAGE else 'local'
         }), 202
         
     except Exception as e:
@@ -273,37 +1421,101 @@ def search():
         if not clean_query:
             return jsonify({'results': [], 'total': 0, 'query': query})
         
-        # Use simple word matching for better compatibility
+        # Use partial word matching for better search results
         search_terms = clean_query.split()
-        fts_query_terms = ' OR '.join([f'"{term}"' for term in search_terms])
+        
+        # Create partial matching patterns (e.g., "calc" matches "calculus", "calculate")
+        partial_patterns = []
+        for term in search_terms:
+            if len(term) >= 2:  # Only create patterns for terms with 2+ characters
+                # Add the original term
+                partial_patterns.append(f'"{term}"')
+                # Add wildcard pattern for partial matching
+                partial_patterns.append(f'"{term}*"')
+        
+        fts_query_terms = ' OR '.join(partial_patterns)
         
         print(f"FTS query terms: {fts_query_terms}")
         
-        # Build FTS5 query with proper syntax
-        if doc_type and doc_type != 'all':
-            fts_query = """
-                SELECT T.document_id, T.page_number, T.content
-                FROM document_content_fts AS T 
-                JOIN documents AS d ON T.document_id = d.id 
-                WHERE document_content_fts MATCH ? AND d.document_type = ? AND d.status = 'indexed'
-                LIMIT ?
-            """
-            params = [fts_query_terms, doc_type, limit]
-        else:
-            fts_query = """
-                SELECT T.document_id, T.page_number, T.content
-                FROM document_content_fts AS T 
-                JOIN documents AS d ON T.document_id = d.id 
-                WHERE document_content_fts MATCH ? AND d.status = 'indexed'
-                LIMIT ?
-            """
-            params = [fts_query_terms, limit]
+        # Try FTS5 first, then fall back to LIKE queries for partial matching
+        try:
+            # Build FTS5 query with proper syntax
+            if doc_type and doc_type != 'all':
+                fts_query = """
+                    SELECT T.document_id, T.page_number, T.content
+                    FROM document_content_fts AS T 
+                    JOIN documents AS d ON T.document_id = d.id 
+                    WHERE document_content_fts MATCH ? AND d.document_type = ? AND d.status = 'indexed'
+                    LIMIT ?
+                """
+                params = [fts_query_terms, doc_type, limit]
+            else:
+                fts_query = """
+                    SELECT T.document_id, T.page_number, T.content
+                    FROM document_content_fts AS T 
+                    JOIN documents AS d ON T.document_id = d.id 
+                    WHERE document_content_fts MATCH ? AND d.status = 'indexed'
+                    LIMIT ?
+                """
+                params = [fts_query_terms, limit]
+            
+            cursor.execute(fts_query, params)
+            fts_matches = cursor.fetchall()
+            
+            # If FTS5 returns no results, try LIKE queries for partial matching
+            if not fts_matches:
+                print("FTS5 returned no results, trying LIKE queries for partial matching")
+                
+                # Build LIKE query for partial matching
+                like_conditions = []
+                like_params = []
+                
+                for term in search_terms:
+                    if len(term) >= 2:
+                        like_conditions.append("T.content LIKE ?")
+                        like_params.append(f"%{term}%")
+                
+                if like_conditions:
+                    like_query = f"""
+                        SELECT T.document_id, T.page_number, T.content
+                        FROM document_content_fts AS T 
+                        JOIN documents AS d ON T.document_id = d.id 
+                        WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
+                        LIMIT ?
+                    """
+                    like_params.append(limit)
+                    
+                    print(f"Executing LIKE query: {like_query}")
+                    print(f"Parameters: {like_params}")
+                    
+                    cursor.execute(like_query, like_params)
+                    fts_matches = cursor.fetchall()
+                    print(f"LIKE query found {len(fts_matches)} matches")
+        except Exception as e:
+            print(f"FTS5 query failed, using LIKE fallback: {e}")
+            # Fallback to LIKE queries
+            like_conditions = []
+            like_params = []
+            
+            for term in search_terms:
+                if len(term) >= 2:
+                    like_conditions.append("T.content LIKE ?")
+                    like_params.append(f"%{term}%")
+            
+            if like_conditions:
+                like_query = f"""
+                    SELECT T.document_id, T.page_number, T.content
+                    FROM document_content_fts AS T 
+                    JOIN documents AS d ON T.document_id = d.id 
+                    WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
+                    LIMIT ?
+                """
+                like_params.append(limit)
+                
+                cursor.execute(like_query, like_params)
+                fts_matches = cursor.fetchall()
 
-        print(f"Executing query: {fts_query}")
-        print(f"Parameters: {params}")
-        
-        cursor.execute(fts_query, params)
-        fts_matches = cursor.fetchall()
+
         
         print(f"Found {len(fts_matches)} matches")
         
@@ -335,7 +1547,8 @@ def search():
                     'snippet': snippet,
                     'confidence': confidence,
                     'type': doc_details['document_type'] or 'document',
-                    'lastUpdated': doc_details['upload_date']
+                    'lastUpdated': doc_details['upload_date'],
+                    'filename': doc_details['original_name']
                 }
                 
                 results_data.append(result_item)
@@ -412,7 +1625,7 @@ def create_snippet(content, search_terms):
     # Highlight search terms
     for term in search_terms:
         pattern = re.compile(re.escape(term), re.IGNORECASE)
-        snippet = pattern.sub(f'<b>{term}</b>', snippet)
+        snippet = pattern.sub(f'<span class="highlight">{term}</span>', snippet)
     
     return snippet
 
@@ -431,6 +1644,52 @@ def calculate_confidence(content, search_terms):
     # Base confidence + bonus for matches
     confidence = min(100, 60 + (total_matches * 8))
     return confidence
+
+@app.route('/api/document/<doc_id>/view', methods=['GET'])
+def view_pdf(doc_id):
+    """Serves a PDF document for viewing in the browser."""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT filename, original_name FROM documents WHERE id = ?", (doc_id,))
+    result = cursor.fetchone()
+    
+    if not result:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    file_path = os.path.join(UPLOAD_FOLDER, result['filename'])
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'Document file not found on disk'}), 404
+    
+    # Serve the PDF with proper headers for browser viewing
+    return send_from_directory(
+        UPLOAD_FOLDER, 
+        result['filename'],
+        mimetype='application/pdf',
+        as_attachment=False
+    )
+
+@app.route('/api/document/<doc_id>/download', methods=['GET'])
+def download_pdf(doc_id):
+    """Downloads a PDF document."""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT filename, original_name FROM documents WHERE id = ?", (doc_id,))
+    result = cursor.fetchone()
+    
+    if not result:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    file_path = os.path.join(UPLOAD_FOLDER, result['filename'])
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'Document file not found on disk'}), 404
+    
+    # Serve the PDF as a download
+    return send_from_directory(
+        UPLOAD_FOLDER, 
+        result['filename'],
+        as_attachment=True,
+        download_name=result['original_name']
+    )
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
@@ -463,24 +1722,111 @@ def get_documents():
     
     return jsonify(documents)
 
-@app.route('/api/document/<doc_id>', methods=['GET'])
-def get_document(doc_id):
-    """Serves a specific PDF document by its unique ID."""
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT filename, original_name FROM documents WHERE id = ?", (doc_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        return jsonify({'error': 'Document not found'}), 404
-    
-    file_path = os.path.join(UPLOAD_FOLDER, result['filename'])
-    if not os.path.exists(file_path):
-        return jsonify({'error': 'Document file not found on disk'}), 404
-    
-    return send_from_directory(UPLOAD_FOLDER, result['filename'], 
-                             as_attachment=False, 
-                             download_name=result['original_name'])
+@app.route('/api/backup', methods=['POST'])
+def create_backup_endpoint():
+    """Manually trigger a backup of files and database."""
+    try:
+        # Backup database
+        db_backup_success, db_backup_message = backup_database()
+        
+        # Get list of all documents for file backup
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT id, filename, original_name FROM documents WHERE status = 'indexed'")
+        documents = cursor.fetchall()
+        
+        backup_results = []
+        for doc in documents:
+            file_path = os.path.join(UPLOAD_FOLDER, doc['filename'])
+            if os.path.exists(file_path):
+                backup_success, backup_message = create_backup(file_path, doc['id'], doc['original_name'])
+                backup_results.append({
+                    'file': doc['original_name'],
+                    'backup_success': backup_success,
+                    'message': backup_message
+                })
+        
+        return jsonify({
+            'success': True,
+            'database_backup': {
+                'success': db_backup_success,
+                'message': db_backup_message
+            },
+            'file_backups': backup_results,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/backup/path', methods=['POST'])
+def change_backup_path():
+    """Changes the backup folder path."""
+    try:
+        data = request.get_json()
+        new_path = data.get('path', '').strip()
+        
+        if not new_path:
+            return jsonify({'error': 'No path provided'}), 400
+        
+        # Expand user path (e.g., ~/Documents -> /Users/username/Documents)
+        expanded_path = os.path.expanduser(new_path)
+        
+        # Create the directory if it doesn't exist
+        try:
+            os.makedirs(expanded_path, exist_ok=True)
+        except PermissionError:
+            return jsonify({'error': f'Permission denied: Cannot create directory at {expanded_path}'}), 403
+        except Exception as e:
+            return jsonify({'error': f'Cannot create directory: {str(e)}'}), 400
+        
+        # Test if we can write to the directory
+        test_file = os.path.join(expanded_path, '.test_write')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+        except Exception as e:
+            return jsonify({'error': f'Directory not writable: {str(e)}'}), 400
+        
+        # Update the global backup folder
+        global BACKUP_FOLDER
+        BACKUP_FOLDER = expanded_path
+        
+        # Save the new path to a config file for persistence
+        config_data = {
+            'backup_folder': expanded_path,
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        config_file = os.path.join(os.path.dirname(__file__), 'backup_config.json')
+        with open(config_file, 'w') as f:
+            json.dump(config_data, f, indent=2)
+        
+        print(f"Backup path changed to: {expanded_path}")
+        
+        return jsonify({
+            'success': True,
+            'new_path': expanded_path,
+            'message': f'Backup path successfully changed to {expanded_path}'
+        })
+        
+    except Exception as e:
+        print(f"Change backup path error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backup/info', methods=['GET'])
+def get_backup_info():
+    """Gets current backup configuration information."""
+    return jsonify({
+        'current_path': BACKUP_FOLDER,
+        'enabled': ENABLE_BACKUPS,
+        'retention_days': BACKUP_RETENTION_DAYS,
+        'auto_backup': AUTO_BACKUP_ON_UPLOAD
+    })
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
@@ -537,67 +1883,17 @@ def get_stats():
         'accuracy': 95.0
     })
 
-@app.route('/api/recent-searches', methods=['GET'])
-def get_recent_searches():
-    """Gets recent distinct search queries."""
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("""
-        SELECT DISTINCT query 
-        FROM search_logs 
-        WHERE query != '' 
-        ORDER BY search_date DESC 
-        LIMIT 5
-    """)
-    
-    searches = [row['query'] for row in cursor.fetchall()]
-    return jsonify(searches)
-
-@app.route('/', methods=['GET'])
-def home():
-    """Home endpoint for API status."""
-    return jsonify({
-        'message': 'AMS Backend API is running',
-        'version': '1.2',
-        'status': 'healthy',
-        'endpoints': [
-            '/api/upload',
-            '/api/search', 
-            '/api/documents',
-            '/api/document/<id>',
-            '/api/stats',
-            '/api/recent-searches',
-            '/health'
-        ]
-    })
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint."""
-    db = get_db()
-    cursor = db.cursor()
-    
-    # Quick database check
-    try:
-        cursor.execute("SELECT COUNT(*) FROM documents")
-        doc_count = cursor.fetchone()[0]
-        
-        return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'database': 'connected',
-            'documents': doc_count
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'timestamp': datetime.now().isoformat(),
-            'database': 'error',
-            'error': str(e)
-        }), 500
-
 if __name__ == '__main__':
-    print("Initializing AMS Backend...")
+    print("Initializing PDF Search & Storage System...")
+    
+    # Load backup configuration
+    load_backup_config()
+    
     init_database()
+    
+    # Clean up old backups on startup
+    if ENABLE_BACKUPS:
+        cleanup_old_backups()
+    
     print("Starting server on http://localhost:5001")
     app.run(debug=True, host='0.0.0.0', port=5001)

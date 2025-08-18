@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting AMS (Document Management System)..."
+echo "🚀 Starting PDF Search & Storage System..."
 echo "=================================================="
 
 # Check if Python is installed
@@ -9,7 +9,7 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check if virtual environment exists
+# Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
     python3 -m venv venv
@@ -33,17 +33,12 @@ if [ ! -d "uploads" ]; then
     mkdir -p uploads
 fi
 
-# Check if database exists
-if [ ! -f "ams.db" ]; then
-    echo "🗄️  Database will be created on first run..."
-fi
-
 echo "=================================================="
 echo "✅ Setup complete! Starting the application..."
-echo "🌐 The app will be available at: http://localhost:5001"
+echo "🌐 The app will be available at: http://localhost:5000"
 echo "📱 Open your browser and navigate to the URL above"
 echo "🛑 Press Ctrl+C to stop the server"
 echo "=================================================="
 
 # Start the Flask application
-python3 app.py 
+python app.py

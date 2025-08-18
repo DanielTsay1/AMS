@@ -1,6 +1,6 @@
-# 📚 AMS - Document Management System
+# 📚 PDF Search & Storage System
 
-A modern, web-based document management system that allows you to upload, index, and search through PDF documents using advanced text search capabilities.
+A modern, web-based document management system that allows you to upload, index, and search through PDF documents using advanced full-text search capabilities.
 
 ## ✨ Features
 
@@ -10,6 +10,7 @@ A modern, web-based document management system that allows you to upload, index,
 - **🎯 Smart Filtering**: Filter results by document type (policies, manuals, FAQs, etc.)
 - **📱 Responsive Design**: Works on desktop and mobile devices
 - **⚡ Fast Indexing**: Background processing with real-time status updates
+- **🎨 Modern UI**: Beautiful, intuitive interface with smooth animations
 
 ## 🚀 Quick Start
 
@@ -39,7 +40,7 @@ A modern, web-based document management system that allows you to upload, index,
    pip install -r requirements.txt
    
    # Start the application
-   python3 app.py
+   python app.py
    ```
 
 3. **Open your browser** and go to: http://localhost:5001
@@ -59,45 +60,44 @@ A modern, web-based document management system that allows you to upload, index,
 - Use filters to narrow down by document type
 
 ### 3. View Results
-- Click on document titles to view PDFs
-- Copy direct links to specific pages
+- Click on document titles to view details
 - See confidence scores for search relevance
+- Filter results by document type
+- View page numbers and document metadata
 
 ## 🏗️ Architecture
 
 - **Backend**: Flask (Python) with SQLite database
-- **Frontend**: Vanilla JavaScript with modern CSS
-- **Search Engine**: SQLite FTS5 (Full-Text Search) with fallback
+- **Frontend**: Modern HTML5, CSS3, and vanilla JavaScript
+- **Search Engine**: SQLite FTS5 (Full-Text Search) with Porter stemming
 - **File Processing**: PyPDF2 for PDF text extraction
-- **Database**: SQLite with optimized schemas
+- **Database**: SQLite with optimized schemas and FTS5 virtual tables
 
 ## 🔧 Configuration
 
 ### Environment Variables
 - `MAX_FILE_SIZE`: Maximum file size (default: 50MB)
 - `UPLOAD_FOLDER`: Directory for uploaded files (default: `uploads/`)
-- `DATABASE`: Database file path (default: `ams.db`)
+- `DATABASE`: Database file path (default: `documents.db`)
 
 ### API Endpoints
+- `GET /` - Main web interface
 - `POST /api/upload` - Upload PDF documents
 - `GET /api/search?q=<query>` - Search documents
 - `GET /api/documents` - List all documents
 - `GET /api/stats` - System statistics
-- `GET /api/recent-searches` - Recent search queries
 
 ## 📁 Project Structure
 
 ```
-AMS/
+PDF-Search-System/
 ├── app.py              # Flask backend application
-├── index.html          # Main frontend interface
-├── index.css           # Styling and layout
-├── java.js             # Frontend functionality
 ├── requirements.txt    # Python dependencies
-├── start.sh           # Startup script
-├── uploads/           # PDF storage directory
-├── ams.db             # SQLite database (created automatically)
-└── README.md          # This file
+├── start.sh            # Startup script
+├── uploads/            # PDF storage directory
+├── documents.db        # SQLite database (created automatically)
+├── venv/               # Python virtual environment
+└── README.md           # This file
 ```
 
 ## 🐛 Troubleshooting
@@ -105,7 +105,7 @@ AMS/
 ### Common Issues
 
 1. **Port already in use**
-   - Change the port in `app.py` (line 969)
+   - Change the port in `app.py` (line 543)
    - Or stop other services using port 5001
 
 2. **Upload fails**
@@ -119,14 +119,15 @@ AMS/
    - Ensure backend is running
 
 4. **Database errors**
-   - Delete `ams.db` file to reset
+   - Delete `documents.db` file to reset
    - Check file permissions in project directory
 
 ### Debug Mode
 
-The application includes debug controls in the search section:
-- **Restore Search Results**: Restore previous search
-- **Debug Info**: View console logs
+The application includes comprehensive logging:
+- Check terminal output for backend logs
+- Use browser developer tools for frontend debugging
+- Monitor file processing status in real-time
 
 ## 🔒 Security Notes
 
@@ -134,20 +135,23 @@ The application includes debug controls in the search section:
 - SQL injection protection via parameterized queries
 - CORS enabled for development (configure for production)
 - File names are sanitized before storage
+- Background processing prevents blocking
 
 ## 🚧 Development
 
 ### Adding New Features
 
 1. **Backend**: Modify `app.py` for new API endpoints
-2. **Frontend**: Update `java.js` for new functionality
-3. **Styling**: Modify `index.css` for UI changes
+2. **Frontend**: Update HTML/CSS/JavaScript in the template string
+3. **Database**: Modify schema in `init_database()` function
+4. **Styling**: Update CSS within the HTML template
 
 ### Testing
 
 - Test with various PDF types and sizes
 - Verify search functionality with different queries
 - Check responsive design on mobile devices
+- Monitor performance with large document collections
 
 ## 📄 License
 
