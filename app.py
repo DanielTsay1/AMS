@@ -434,13 +434,286 @@ def home():
                 border-radius: 4px;
                 font-size: 0.875rem;
                 transition: border-color 0.2s ease;
-                background: white;
+                background: white !important;
+                color: #191919 !important;
+                font-weight: 400;
             }
             
             .search-input:focus {
                 outline: none;
                 border-color: #0a66c2;
                 box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.1);
+                background: white;
+                color: #191919;
+            }
+            
+            .search-input::placeholder {
+                color: #666;
+                opacity: 1;
+            }
+            
+            /* Ensure all input fields have proper contrast */
+            input[type="text"], input[type="email"], input[type="password"], input[type="search"], textarea, select {
+                color: #191919 !important;
+                background: white !important;
+                font-weight: 400;
+            }
+            
+            input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="password"]::placeholder, input[type="search"]::placeholder, textarea::placeholder {
+                color: #666 !important;
+                opacity: 1;
+            }
+            
+            /* Specific rule for search input to ensure visibility */
+            #searchInput {
+                color: #191919 !important;
+                background: white !important;
+                font-weight: 400 !important;
+            }
+            
+            #searchInput::placeholder {
+                color: #666 !important;
+                opacity: 1 !important;
+            }
+            
+            /* Additional browser compatibility */
+            #searchInput::-webkit-input-placeholder {
+                color: #666 !important;
+                opacity: 1 !important;
+            }
+            
+            #searchInput:-moz-placeholder {
+                color: #666 !important;
+                opacity: 1 !important;
+            }
+            
+            #searchInput::-moz-placeholder {
+                color: #666 !important;
+                opacity: 1 !important;
+            }
+            
+            #searchInput:-ms-input-placeholder {
+                color: #666 !important;
+                opacity: 1 !important;
+            }
+            
+            /* Document Library Styles */
+            .library-controls {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            
+            .library-filters {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            
+            .library-search {
+                flex-shrink: 0;
+            }
+            
+            .library-controls-right {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .document-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 20px;
+                margin-top: 20px;
+            }
+            
+            .document-card {
+                background: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 20px;
+                transition: all 0.2s ease;
+                cursor: pointer;
+                position: relative;
+            }
+            
+            .document-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border-color: #0a66c2;
+            }
+            
+            .document-card.processing {
+                border-color: #ffc107;
+                background: #fffbf0;
+            }
+            
+            .document-card.error {
+                border-color: #dc3545;
+                background: #fff5f5;
+            }
+            
+            .document-card.indexed {
+                border-color: #28a745;
+                background: #f8fff9;
+            }
+            
+            .document-header {
+                display: flex;
+                align-items: flex-start;
+                margin-bottom: 15px;
+            }
+            
+            .document-icon {
+                font-size: 2rem;
+                margin-right: 15px;
+                color: #0a66c2;
+            }
+            
+            .document-info {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .document-title {
+                font-weight: 600;
+                color: #191919;
+                margin-bottom: 5px;
+                font-size: 1rem;
+                line-height: 1.3;
+                word-wrap: break-word;
+            }
+            
+            .document-meta {
+                color: #666;
+                font-size: 0.8rem;
+                line-height: 1.4;
+            }
+            
+            .document-status {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.7rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.025em;
+            }
+            
+            .status-processing {
+                background: #fff3cd;
+                color: #856404;
+            }
+            
+            .status-indexed {
+                background: #d1e7dd;
+                color: #0f5132;
+            }
+            
+            .status-error {
+                background: #f8d7da;
+                color: #721c24;
+            }
+            
+            .document-actions {
+                display: flex;
+                gap: 10px;
+                margin-top: 15px;
+                flex-wrap: wrap;
+            }
+            
+            .action-btn {
+                background: #f8f9fa;
+                border: 1px solid #d0d8dc;
+                color: #666;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+            
+            .action-btn:hover {
+                background: #0a66c2;
+                color: white;
+                border-color: #0a66c2;
+            }
+            
+            .action-btn.view {
+                background: #e3f2fd;
+                color: #0d47a1;
+                border-color: #2196f3;
+            }
+            
+            .action-btn.download {
+                background: #e8f5e8;
+                color: #1e7e34;
+                border-color: #28a745;
+            }
+            
+            .document-preview {
+                margin-top: 15px;
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 6px;
+                border-left: 3px solid #0a66c2;
+                font-size: 0.8rem;
+                color: #666;
+                line-height: 1.5;
+                max-height: 100px;
+                overflow: hidden;
+                position: relative;
+            }
+            
+            .document-preview::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 20px;
+                background: linear-gradient(transparent, #f8f9fa);
+            }
+            
+            .no-documents {
+                text-align: center;
+                padding: 40px;
+                color: #666;
+            }
+            
+            .no-documents h3 {
+                margin-bottom: 10px;
+                color: #191919;
+            }
+            
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: #666;
+            }
+            
+            .loading-spinner {
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #0a66c2;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
             }
             
             .search-btn {
@@ -772,6 +1045,95 @@ def home():
                     padding: 20px;
                 }
             }
+            
+            /* Modal Styles */
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.5);
+                backdrop-filter: blur(5px);
+            }
+            
+            .modal-content {
+                background-color: white;
+                margin: 5% auto;
+                padding: 0;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 500px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                animation: modalSlideIn 0.3s ease-out;
+            }
+            
+            @keyframes modalSlideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-50px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .modal-header {
+                padding: 20px 20px 15px;
+                border-bottom: 1px solid #e0e0e0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .modal-header h3 {
+                margin: 0;
+                color: #dc3545;
+                font-size: 1.2rem;
+            }
+            
+            .close {
+                color: #aaa;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+                line-height: 1;
+            }
+            
+            .close:hover {
+                color: #000;
+            }
+            
+            .modal-body {
+                padding: 20px;
+                color: #333;
+                line-height: 1.6;
+            }
+            
+            .modal-body p {
+                margin-bottom: 15px;
+            }
+            
+            .modal-body ul {
+                margin: 15px 0;
+                padding-left: 20px;
+            }
+            
+            .modal-body li {
+                margin-bottom: 8px;
+                color: #666;
+            }
+            
+            .modal-footer {
+                padding: 15px 20px 20px;
+                border-top: 1px solid #e0e0e0;
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+            }
         </style>
     </head>
     <body>
@@ -828,6 +1190,38 @@ def home():
             </div>
             </div>
             
+            <!-- Document Library Section -->
+            <div class="card">
+                <h2>📚 Document Library</h2>
+                <div class="library-controls">
+                    <div class="library-filters">
+                        <button class="filter-btn active" data-library-filter="all">All Documents</button>
+                        <button class="filter-btn" data-library-filter="policy">Policies</button>
+                        <button class="filter-btn" data-library-filter="manual">Manuals</button>
+                        <button class="filter-btn" data-library-filter="faq">FAQs</button>
+                        <button class="filter-btn" data-library-filter="guide">Guides</button>
+                    </div>
+                    <div class="library-controls-right">
+                        <div class="library-search">
+                            <input type="text" id="librarySearch" placeholder="Search documents by name..." class="search-input" style="max-width: 300px;">
+                        </div>
+                        <button class="action-btn" onclick="refreshDocumentLibrary()" style="margin-left: 10px;">
+                            🔄 Refresh
+                        </button>
+                        <button class="action-btn" onclick="showClearAllConfirmation()" style="margin-left: 10px; background: #dc3545; color: white; border-color: #dc3545;">
+                            🗑️ Clear All
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="document-grid" id="documentGrid">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <h3>Loading documents...</h3>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Stats Section -->
             <div class="card">
                 <h2>📊 System Statistics</h2>
@@ -858,7 +1252,7 @@ def home():
                     <div class="backup-controls" style="margin: 20px 0; padding: 15px; background: #f8f9ff; border-radius: 8px; text-align: left;">
                         <h4 style="margin-top: 0; color: #333;">📁 Change Backup Location</h4>
                         <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-                            <input type="text" id="newBackupPath" placeholder="Enter new backup path (e.g., /Users/username/Documents/MyBackups)" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
+                            <input type="text" id="newBackupPath" placeholder="Enter new backup path (e.g., /Users/username/Documents/MyBackups)" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; color: #191919; background: white;">
                             <button onclick="changeBackupPath()" style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">Change Path</button>
                         </div>
                         <div style="font-size: 0.8rem; color: #666; line-height: 1.4;">
@@ -931,6 +1325,7 @@ def home():
                                 
                                 pollUploadStatus(result.id, fileItem);
                                 loadStats();
+                                loadDocumentLibrary(); // Refresh document library
                             } else {
                                 const error = await response.text();
                                 console.error('Upload failed:', error);
@@ -982,6 +1377,7 @@ def home():
                             if (doc.status === 'indexed') {
                                 updateFileStatus(fileItem, 'Indexed', 'status-complete');
                                 loadStats();
+                                loadDocumentLibrary(); // Refresh document library
                                 return;
                             } else if (doc.status === 'error') {
                                 updateFileStatus(fileItem, 'Error', 'status-error');
@@ -1198,8 +1594,9 @@ def home():
                 });
             });
 
-            // Load initial stats and backup info
+            // Load initial stats, documents, and backup info
             loadStats();
+            loadDocumentLibrary();
             loadBackupInfo();
 
             async function loadStats() {
@@ -1215,6 +1612,190 @@ def home():
                 } catch (error) {
                     console.error('Failed to load stats:', error);
                 }
+            }
+            
+            async function loadDocumentLibrary() {
+                try {
+                    const response = await fetch('/api/documents');
+                    if (response.ok) {
+                        const documents = await response.json();
+                        displayDocuments(documents);
+                    }
+                } catch (error) {
+                    console.error('Failed to load documents:', error);
+                    document.getElementById('documentGrid').innerHTML = `
+                        <div class="no-documents">
+                            <h3>❌ Error Loading Documents</h3>
+                            <p>Failed to load document library. Please refresh the page.</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            function displayDocuments(documents) {
+                const documentGrid = document.getElementById('documentGrid');
+                
+                if (documents.length === 0) {
+                    documentGrid.innerHTML = `
+                        <div class="no-documents">
+                            <h3>📚 No Documents Yet</h3>
+                            <p>Upload your first PDF to get started!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const documentsHTML = documents.map(doc => createDocumentCard(doc)).join('');
+                documentGrid.innerHTML = documentsHTML;
+                
+                // Add event listeners to action buttons
+                addDocumentEventListeners();
+            }
+            
+            function createDocumentCard(doc) {
+                const statusClass = doc.status === 'indexed' ? 'indexed' : 
+                                  doc.status === 'error' ? 'error' : 'processing';
+                
+                const statusText = doc.status === 'indexed' ? 'Indexed' :
+                                 doc.status === 'error' ? 'Error' : 'Processing';
+                
+                const statusColor = doc.status === 'indexed' ? 'status-indexed' :
+                                  doc.status === 'error' ? 'status-error' : 'status-processing';
+                
+                const fileSize = doc.size ? `${(doc.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size';
+                const uploadDate = doc.upload_date ? new Date(doc.upload_date).toLocaleDateString() : 'Never';
+                const pageCount = doc.page_count || 'Unknown';
+                
+                return `
+                    <div class="document-card ${statusClass}" data-doc-id="${doc.id}">
+                        <div class="document-status ${statusColor}">${statusText}</div>
+                        
+                        <div class="document-header">
+                            <div class="document-icon">📄</div>
+                            <div class="document-info">
+                                <div class="document-title">${doc.name}</div>
+                                <div class="document-meta">
+                                    📏 ${fileSize} • 📅 ${uploadDate}<br>
+                                    📖 ${pageCount} pages • 🏷️ ${doc.type || 'Document'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${doc.status === 'indexed' ? `
+                            <div class="document-preview">
+                                <strong>Ready for search</strong><br>
+                                This document has been processed and indexed. You can now search through its content.
+                            </div>
+                        ` : doc.status === 'error' ? `
+                            <div class="document-preview">
+                                <strong>Processing failed</strong><br>
+                                ${doc.error || 'An error occurred during processing. Please try uploading again.'}
+                            </div>
+                        ` : `
+                            <div class="document-preview">
+                                <strong>Processing...</strong><br>
+                                This document is being analyzed and indexed. Please wait a moment.
+                            </div>
+                        `}
+                        
+                        <div class="document-actions">
+                            <button class="action-btn view" onclick="viewDocument('${doc.id}')">
+                                👁️ View
+                            </button>
+                            <button class="action-btn download" onclick="downloadDocument('${doc.id}')">
+                                ⬇️ Download
+                            </button>
+                            ${doc.status === 'indexed' ? `
+                                <button class="action-btn" onclick="searchInDocument('${doc.name}')">
+                                    🔍 Search
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            function addDocumentEventListeners() {
+                // Add click handlers for document cards
+                document.querySelectorAll('.document-card').forEach(card => {
+                    card.addEventListener('click', function(e) {
+                        // Don't trigger if clicking on action buttons
+                        if (e.target.classList.contains('action-btn')) return;
+                        
+                        const docId = this.dataset.docId;
+                        viewDocument(docId);
+                    });
+                });
+            }
+            
+            function viewDocument(docId) {
+                window.open(`/api/document/${docId}/view`, '_blank');
+            }
+            
+            function downloadDocument(docId) {
+                window.open(`/api/document/${docId}/download`, '_blank');
+            }
+            
+            function searchInDocument(docName) {
+                document.getElementById('searchInput').value = docName;
+                performSearch();
+            }
+            
+            // Library search functionality
+            document.getElementById('librarySearch').addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                const documentCards = document.querySelectorAll('.document-card');
+                
+                documentCards.forEach(card => {
+                    const title = card.querySelector('.document-title').textContent.toLowerCase();
+                    const meta = card.querySelector('.document-meta').textContent.toLowerCase();
+                    
+                    if (title.includes(searchTerm) || meta.includes(searchTerm)) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Library filter functionality
+            document.querySelectorAll('[data-library-filter]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Update active filter
+                    document.querySelectorAll('[data-library-filter]').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const filter = this.dataset.libraryFilter;
+                    filterDocuments(filter);
+                });
+            });
+            
+            function filterDocuments(filter) {
+                const documentCards = document.querySelectorAll('.document-card');
+                
+                documentCards.forEach(card => {
+                    if (filter === 'all') {
+                        card.style.display = 'block';
+                    } else {
+                        const type = card.querySelector('.document-meta').textContent.toLowerCase();
+                        if (type.includes(filter)) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    }
+                });
+            }
+            
+            function refreshDocumentLibrary() {
+                const documentGrid = document.getElementById('documentGrid');
+                documentGrid.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <h3>Refreshing documents...</h3>
+                    </div>
+                `;
+                loadDocumentLibrary();
             }
             
             async function loadBackupInfo() {
@@ -1304,7 +1885,86 @@ def home():
                     `;
                 }
             }
+            
+            // Clear All functionality
+            function showClearAllConfirmation() {
+                document.getElementById('clearAllModal').style.display = 'block';
+            }
+            
+            function closeClearAllModal() {
+                document.getElementById('clearAllModal').style.display = 'none';
+            }
+            
+            async function clearAllDocuments() {
+                const clearBtn = event.target;
+                clearBtn.disabled = true;
+                clearBtn.textContent = '🗑️ Clearing...';
+                
+                try {
+                    const response = await fetch('/api/clear-all', { method: 'POST' });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Close modal
+                        closeClearAllModal();
+                        
+                        // Show success message
+                        alert('✅ All documents have been cleared successfully!');
+                        
+                        // Refresh the interface
+                        loadStats();
+                        loadDocumentLibrary();
+                        
+                        // Clear search results
+                        document.getElementById('searchResults').innerHTML = '';
+                        document.getElementById('searchInput').value = '';
+                        
+                        // Clear file list
+                        document.getElementById('fileList').innerHTML = '';
+                    } else {
+                        alert(`❌ Failed to clear documents: ${result.error}`);
+                    }
+                } catch (error) {
+                    alert(`❌ Error clearing documents: ${error.message}`);
+                } finally {
+                    clearBtn.disabled = false;
+                    clearBtn.textContent = 'Yes, Clear Everything';
+                }
+            }
+            
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const modal = document.getElementById('clearAllModal');
+                if (event.target === modal) {
+                    closeClearAllModal();
+                }
+            }
         </script>
+        
+        <!-- Clear All Confirmation Modal -->
+        <div id="clearAllModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚠️ Clear All Documents</h3>
+                    <span class="close" onclick="closeClearAllModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p><strong>This action cannot be undone!</strong></p>
+                    <p>This will permanently delete:</p>
+                    <ul>
+                        <li>All uploaded PDF files</li>
+                        <li>All search indexes</li>
+                        <li>All document metadata</li>
+                        <li>All search history</li>
+                    </ul>
+                    <p>Are you sure you want to continue?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="action-btn" onclick="closeClearAllModal()">Cancel</button>
+                    <button class="action-btn" onclick="clearAllDocuments()" style="background: #dc3545; color: white; border-color: #dc3545;">Yes, Clear Everything</button>
+                </div>
+            </div>
+        </div>
     </body>
     </html>
     '''
@@ -1882,6 +2542,53 @@ def get_stats():
         'lastUpdated': last_updated_readable,
         'accuracy': 95.0
     })
+
+@app.route('/api/clear-all', methods=['POST'])
+def clear_all_documents():
+    """Clears all documents, indexes, and files from the system."""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        # Get all document filenames to delete from disk
+        cursor.execute("SELECT filename FROM documents")
+        filenames = cursor.fetchall()
+        
+        # Delete physical files from uploads folder
+        for (filename,) in filenames:
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted file: {file_path}")
+                except Exception as e:
+                    print(f"Failed to delete file {file_path}: {e}")
+        
+        # Clear all tables
+        cursor.execute("DELETE FROM documents")
+        cursor.execute("DELETE FROM document_content_fts")
+        cursor.execute("DELETE FROM search_logs")
+        
+        # Reset auto-increment counters
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('documents', 'document_content_fts', 'search_logs')")
+        
+        db.commit()
+        
+        print("All documents and data cleared successfully")
+        
+        return jsonify({
+            'success': True,
+            'message': 'All documents and data cleared successfully',
+            'deleted_files': len(filenames),
+            'deleted_records': cursor.rowcount
+        })
+        
+    except Exception as e:
+        print(f"Error clearing all documents: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     print("Initializing PDF Search & Storage System...")
