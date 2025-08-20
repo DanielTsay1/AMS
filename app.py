@@ -1139,7 +1139,7 @@ def home():
     <body>
         <div class="container">
             <div class="header">
-                <h1>📚 PDF Search & Storage</h1>
+                <h1> AMS PDF Search & Storage</h1>
                 <p>Upload PDFs and search through their content instantly</p>
             </div>
             
