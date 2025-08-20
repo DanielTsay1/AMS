@@ -49,20 +49,6 @@
 - `DATABASE`: Database file path (default: `documents.db`)
 
 
-## 📁 Project Structure
-
-PDF-Search-System/
-├── app.py              # Flask backend application
-├── requirements.txt    # Python dependencies
-├── start.sh            # Startup script
-├── uploads/            # PDF storage directory
-├── documents.db        # SQLite database (created automatically)
-├── venv/               # Python virtual environment
-└── README.md           # This file
-
-
-## 🐛 Troubleshooting
-
 ### Common Issues
 
 1. **Port already in use**
