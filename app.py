@@ -1163,11 +1163,26 @@ def home():
                 <h2>🔍 Search Documents</h2>
                 <div class="search-container">
                     <input type="text" class="search-input" placeholder="What would you like to know? (partial words work too!)" id="searchInput">
-                    <button class="search-btn" onclick="performSearch()">Search</button>
+                    <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
+                        <button class="search-btn" onclick="performSearch()" style="flex: 1;">Search</button>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="font-size: 0.8rem; color: #666;">Search mode:</label>
+                            <select id="searchMode" style="padding: 4px 8px; border: 1px solid #d0d8dc; border-radius: 4px; font-size: 0.8rem; background: white; color: #191919;">
+                                <option value="and">All Words (AND)</option>
+                                <option value="or">Any Words (OR)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="search-tips">
-                    💡 <strong>Search Tips:</strong> Use partial words like "calc" to find "calculus", "calc" to find "calculate", etc.
+                    💡 <strong>Search Tips:</strong> 
+                    <ul style="margin: 8px 0 0 20px; padding: 0;">
+                        <li>Use partial words like "calc" to find "calculus", "calculate", etc.</li>
+                        <li>Search for multiple words: "health computer workers" finds documents containing all three terms</li>
+                        <li>Words don't need to be together - the system finds documents with all your search terms</li>
+                        <li>Common words like "and", "or", "the" are automatically filtered out for better results</li>
+                    </ul>
                 </div>
                 
                 <div class="filters">
@@ -1416,10 +1431,11 @@ def home():
                 const query = document.getElementById('searchInput').value.trim();
                 if (!query) return;
 
+                const searchMode = document.getElementById('searchMode').value;
                 showLoading();
                 
                 try {
-                    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${searchMode}`);
                     if (response.ok) {
                         const data = await response.json();
                         searchResults = data.results || [];
@@ -1445,6 +1461,7 @@ def home():
                 
                 // Extract unique words from results for suggestions
                 const words = new Set();
+                const multiWordSuggestions = new Set();
                 results.forEach(result => {
                     const content = result.snippet.toLowerCase();
                     const queryLower = query.toLowerCase();
@@ -1456,14 +1473,51 @@ def home():
                             words.add(word);
                         }
                     });
+                    
+                    // Create multi-word suggestions by combining query with other relevant words
+                    const queryTerms = queryLower.split(' ').filter(term => term.length >= 2);
+                    if (queryTerms.length > 0) {
+                        wordMatches.forEach(word => {
+                            if (word.length >= 3 && !queryTerms.includes(word)) {
+                                // Create suggestions like "health computer" + "workers" = "health computer workers"
+                                const newSuggestion = [...queryTerms, word].join(' ');
+                                if (newSuggestion.length < 50) { // Limit suggestion length
+                                    multiWordSuggestions.add(newSuggestion);
+                                }
+                            }
+                        });
+                    }
                 });
                 
+                let suggestionsHTML = '';
+                
+                // Add single word suggestions
                 if (words.size > 0) {
-                    const suggestions = Array.from(words).slice(0, 5);
+                    const singleWordSuggestions = Array.from(words).slice(0, 3);
+                    suggestionsHTML += `
+                        <div style="margin-bottom: 10px;">
+                            <strong>📝 Related words:</strong> 
+                            ${singleWordSuggestions.map(word => `<span onclick="setSearch('${word}')" style="cursor: pointer; color: #17a2b8; text-decoration: underline; margin: 0 5px;">${word}</span>`).join('')}
+                        </div>
+                    `;
+                }
+                
+                // Add multi-word suggestions
+                if (multiWordSuggestions.size > 0) {
+                    const multiWordSuggestionsArray = Array.from(multiWordSuggestions).slice(0, 3);
+                    suggestionsHTML += `
+                        <div>
+                            <strong>🔍 Multi-word searches:</strong> 
+                            ${multiWordSuggestionsArray.map(suggestion => `<span onclick="setSearch('${suggestion}')" style="cursor: pointer; color: #28a745; text-decoration: underline; margin: 0 5px;">${suggestion}</span>`).join('')}
+                        </div>
+                    `;
+                }
+                
+                if (suggestionsHTML) {
                     suggestionsDiv.innerHTML = `
-                        <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #17a2b8;">
-                            💡 <strong>Try these related searches:</strong> 
-                            ${suggestions.map(word => `<span onclick="setSearch('${word}')" style="cursor: pointer; color: #17a2b8; text-decoration: underline; margin: 0 5px;">${word}</span>`).join('')}
+                        <div style="margin-top: 15px; padding: 15px; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            💡 <strong>Search suggestions:</strong><br>
+                            ${suggestionsHTML}
                         </div>
                     `;
                 } else {
@@ -1501,16 +1555,38 @@ def home():
                     : results.filter(r => r.type === currentFilter);
 
                 if (filteredResults.length === 0) {
+                    const searchMode = document.getElementById('searchMode').value;
+                    const modeText = searchMode === 'and' ? 'All Words (AND)' : 'Any Words (OR)';
+                    
+                    let helpText = 'Try adjusting your search terms or filters';
+                    if (searchMode === 'and') {
+                        helpText = 'No documents contain ALL your search terms. Try using fewer terms or switch to "Any Words (OR)" mode for broader results.';
+                    }
+                    
                     document.getElementById('resultsSection').innerHTML = `
                         <div class="loading">
                             <h3>No results found</h3>
-                            <p>Try adjusting your search terms or filters</p>
+                            <p>${helpText}</p>
+                            <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 0.9rem; color: #856404;">
+                                💡 <strong>Search Mode:</strong> ${modeText} • <strong>Tip:</strong> AND mode requires all terms to be present, OR mode finds documents with any term
+                            </div>
                         </div>
                     `;
                     return;
                 }
 
-                const resultsHTML = filteredResults.map(result => createResultHTML(result)).join('');
+                const searchMode = document.getElementById('searchMode').value;
+                const modeText = searchMode === 'and' ? 'All Words (AND)' : 'Any Words (OR)';
+                
+                const searchInput = document.getElementById('searchInput').value;
+                const resultsHTML = `
+                    <div style="margin-bottom: 20px; padding: 12px; background: #e8f4fd; border-radius: 6px; border-left: 4px solid #17a2b8; font-size: 0.9rem; color: #0d47a1;">
+                        🔍 <strong>Search Mode:</strong> ${modeText} • <strong>Results:</strong> ${filteredResults.length} documents found<br>
+                        📝 <strong>Searching for:</strong> "${searchInput}" (filtered to meaningful terms)
+                    </div>
+                    ${filteredResults.map(result => createResultHTML(result)).join('')}
+                `;
+                
                 document.getElementById('resultsSection').innerHTML = resultsHTML;
             }
 
@@ -2052,9 +2128,10 @@ def search():
     """Searches documents using FTS5."""
     query = request.args.get('q', '').strip()
     doc_type = request.args.get('type', 'all').lower()
+    search_mode = request.args.get('mode', 'and').lower()  # 'and' or 'or'
     limit = int(request.args.get('limit', 10))
     
-    print(f"Search request - Query: '{query}', Type: '{doc_type}', Limit: {limit}")
+    print(f"Search request - Query: '{query}', Type: '{doc_type}', Mode: '{search_mode}', Limit: {limit}")
     
     if not query:
         return jsonify({'results': [], 'total': 0, 'query': ''})
@@ -2081,71 +2158,107 @@ def search():
         if not clean_query:
             return jsonify({'results': [], 'total': 0, 'query': query})
         
-        # Use partial word matching for better search results
-        search_terms = clean_query.split()
+        # Filter out only the most common logical words that interfere with search
+        logical_words = {'and', 'or', 'the', 'a', 'an'}
         
-        # Create partial matching patterns (e.g., "calc" matches "calculus", "calculate")
-        partial_patterns = []
+        # Split into terms and filter out only the most problematic logical words
+        search_terms = [term.lower() for term in clean_query.split() 
+                       if term.lower() not in logical_words and len(term) >= 2]
+        
+        if not search_terms:
+            return jsonify({'results': [], 'total': 0, 'query': query, 'message': 'No meaningful search terms found after filtering'})
+        
+        print(f"Filtered search terms: {search_terms}")
+        
+        # Create multi-word search patterns
+        # For FTS5: Use AND logic to find documents containing ALL search terms
+        fts_and_patterns = []
+        fts_or_patterns = []
+        
         for term in search_terms:
-            if len(term) >= 2:  # Only create patterns for terms with 2+ characters
-                # Add the original term
-                partial_patterns.append(f'"{term}"')
-                # Add wildcard pattern for partial matching
-                partial_patterns.append(f'"{term}*"')
+            # Add the original term
+            fts_and_patterns.append(f'"{term}"')
+            fts_or_patterns.append(f'"{term}"')
+            # Add wildcard pattern for partial matching
+            fts_and_patterns.append(f'"{term}*"')
+            fts_or_patterns.append(f'"{term}*"')
         
-        fts_query_terms = ' OR '.join(partial_patterns)
+        # Create AND query (all terms must be present) and OR query (any term can be present)
+        fts_and_query = ' AND '.join(fts_and_patterns)
+        fts_or_query = ' OR '.join(fts_or_patterns)
         
-        print(f"FTS query terms: {fts_query_terms}")
+        print(f"FTS AND query: {fts_and_query}")
+        print(f"FTS OR query: {fts_or_query}")
         
         # Try FTS5 first, then fall back to LIKE queries for partial matching
         try:
-            # Build FTS5 query with proper syntax
+            # Use the selected search mode
+            if search_mode == 'or':
+                # Use OR query for broader results
+                fts_query_to_use = fts_or_query
+                print(f"Using OR search mode: {fts_query_to_use}")
+            else:
+                # Use AND query for more precise results (default)
+                fts_query_to_use = fts_and_query
+                print(f"Using AND search mode: {fts_query_to_use}")
+            
             if doc_type and doc_type != 'all':
-                fts_query = """
+                fts_query_sql = """
                     SELECT T.document_id, T.page_number, T.content
                     FROM document_content_fts AS T 
                     JOIN documents AS d ON T.document_id = d.id 
                     WHERE document_content_fts MATCH ? AND d.document_type = ? AND d.status = 'indexed'
                     LIMIT ?
                 """
-                params = [fts_query_terms, doc_type, limit]
+                params = [fts_query_to_use, doc_type, limit]
             else:
-                fts_query = """
+                fts_query_sql = """
                     SELECT T.document_id, T.page_number, T.content
                     FROM document_content_fts AS T 
                     JOIN documents AS d ON T.document_id = d.id 
                     WHERE document_content_fts MATCH ? AND d.status = 'indexed'
                     LIMIT ?
                 """
-                params = [fts_query_terms, limit]
+                params = [fts_query_to_use, limit]
             
-            cursor.execute(fts_query, params)
+            cursor.execute(fts_query_sql, params)
             fts_matches = cursor.fetchall()
+            print(f"FTS query returned {len(fts_matches)} results")
             
             # If FTS5 returns no results, try LIKE queries for partial matching
             if not fts_matches:
                 print("FTS5 returned no results, trying LIKE queries for partial matching")
                 
-                # Build LIKE query for partial matching
+                # Build LIKE query for multi-word search based on search mode
                 like_conditions = []
                 like_params = []
                 
                 for term in search_terms:
-                    if len(term) >= 2:
-                        like_conditions.append("T.content LIKE ?")
-                        like_params.append(f"%{term}%")
+                    like_conditions.append("T.content LIKE ?")
+                    like_params.append(f"%{term}%")
                 
                 if like_conditions:
-                    like_query = f"""
-                        SELECT T.document_id, T.page_number, T.content
-                        FROM document_content_fts AS T 
-                        JOIN documents AS d ON T.document_id = d.id 
-                        WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
-                        LIMIT ?
-                    """
-                    like_params.append(limit)
+                    # Use the selected search mode for LIKE queries
+                    if search_mode == 'or':
+                        like_query = f"""
+                            SELECT T.document_id, T.page_number, T.content
+                            FROM document_content_fts AS T 
+                            JOIN documents AS d ON T.document_id = d.id 
+                            WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
+                            LIMIT ?
+                        """
+                        print(f"Executing LIKE OR query: {like_query}")
+                    else:
+                        like_query = f"""
+                            SELECT T.document_id, T.page_number, T.content
+                            FROM document_content_fts AS T 
+                            JOIN documents AS d ON T.document_id = d.id 
+                            WHERE ({' AND '.join(like_conditions)}) AND d.status = 'indexed'
+                            LIMIT ?
+                        """
+                        print(f"Executing LIKE AND query: {like_query}")
                     
-                    print(f"Executing LIKE query: {like_query}")
+                    like_params.append(limit)
                     print(f"Parameters: {like_params}")
                     
                     cursor.execute(like_query, like_params)
@@ -2153,25 +2266,34 @@ def search():
                     print(f"LIKE query found {len(fts_matches)} matches")
         except Exception as e:
             print(f"FTS5 query failed, using LIKE fallback: {e}")
-            # Fallback to LIKE queries
+            # Fallback to LIKE queries with multi-word support based on search mode
             like_conditions = []
             like_params = []
             
             for term in search_terms:
-                if len(term) >= 2:
-                    like_conditions.append("T.content LIKE ?")
-                    like_params.append(f"%{term}%")
+                like_conditions.append("T.content LIKE ?")
+                like_params.append(f"%{term}%")
             
             if like_conditions:
-                like_query = f"""
-                    SELECT T.document_id, T.page_number, T.content
-                    FROM document_content_fts AS T 
-                    JOIN documents AS d ON T.document_id = d.id 
-                    WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
-                    LIMIT ?
-                """
-                like_params.append(limit)
+                # Use the selected search mode for LIKE queries
+                if search_mode == 'or':
+                    like_query = f"""
+                        SELECT T.document_id, T.page_number, T.content
+                        FROM document_content_fts AS T 
+                        JOIN documents AS d ON T.document_id = d.id 
+                        WHERE ({' OR '.join(like_conditions)}) AND d.status = 'indexed'
+                        LIMIT ?
+                    """
+                else:
+                    like_query = f"""
+                        SELECT T.document_id, T.page_number, T.content
+                        FROM document_content_fts AS T 
+                        JOIN documents AS d ON T.document_id = d.id 
+                        WHERE ({' AND '.join(like_conditions)}) AND d.status = 'indexed'
+                        LIMIT ?
+                    """
                 
+                like_params.append(limit)
                 cursor.execute(like_query, like_params)
                 fts_matches = cursor.fetchall()
 
