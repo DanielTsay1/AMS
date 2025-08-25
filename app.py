@@ -224,18 +224,18 @@ def determine_document_type(filename, content):
     filename_lower = filename.lower()
     content_lower = ' '.join([page['text'] for page in content]).lower()
     
-    if any(word in filename_lower for word in ['policy', 'policies']):
-        return 'policy'
-    elif any(word in filename_lower for word in ['manual', 'guide', 'handbook']):
-        return 'manual'
-    elif any(word in filename_lower for word in ['faq', 'questions', 'answers']):
-        return 'faq'
-    elif any(word in content_lower for word in ['policy', 'procedure', 'guidelines']):
-        return 'policy'
-    elif any(word in content_lower for word in ['manual', 'instructions', 'how to']):
-        return 'guide'
-    else:
-        return 'document'
+    # if any(word in filename_lower for word in ['policy', 'policies']):
+    #     return 'policy'
+    # elif any(word in filename_lower for word in ['manual', 'guide', 'handbook']):
+    #     return 'manual'
+    # elif any(word in filename_lower for word in ['faq', 'questions', 'answers']):
+    #     return 'faq'
+    # elif any(word in content_lower for word in ['policy', 'procedure', 'guidelines']):
+    #     return 'policy'
+    # elif any(word in content_lower for word in ['manual', 'instructions', 'how to']):
+    #     return 'guide'
+    # else:
+    #     return 'document'
 
 def process_pdf_background(file_id, file_path, original_filename):
     """Background task to process PDF content."""
@@ -1187,10 +1187,7 @@ def home():
                 
                 <div class="filters">
                     <button class="filter-btn active" data-filter="all">All Documents</button>
-                    <button class="filter-btn" data-filter="policy">Policies</button>
-                    <button class="filter-btn" data-filter="manual">Manuals</button>
-                    <button class="filter-btn" data-filter="faq">FAQs</button>
-                    <button class="filter-btn" data-filter="guide">Guides</button>
+                
                 </div>
                 
                 <div class="results-section" id="resultsSection">
@@ -1211,10 +1208,6 @@ def home():
                 <div class="library-controls">
                     <div class="library-filters">
                         <button class="filter-btn active" data-library-filter="all">All Documents</button>
-                        <button class="filter-btn" data-library-filter="policy">Policies</button>
-                        <button class="filter-btn" data-library-filter="manual">Manuals</button>
-                        <button class="filter-btn" data-library-filter="faq">FAQs</button>
-                        <button class="filter-btn" data-library-filter="guide">Guides</button>
                     </div>
                     <div class="library-controls-right">
                         <div class="library-search">
